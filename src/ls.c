@@ -32,17 +32,17 @@ int main(int argc, char **argv) {
             dir = opendir(argv[i]);
 
             if (dir == NULL) {
-            printf("Couldn't open the directory\n");
-            exit(1);
+                printf("Couldn't open the directory\n");
+                exit(1);
             }
 
             while ((entry = readdir(dir)) != NULL) {
-            printf("%s\n", entry->d_name);
+                printf("%s\n", entry->d_name);
             }
 
             printf("\n");
             closedir(dir);
-    }
+        }
 
     return 0;
 }
