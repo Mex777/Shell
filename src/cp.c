@@ -3,17 +3,16 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-
 	if (argc != 3) {
-		printf("Eroare la copierea fisierului\n");
-		 exit(1);
+		printf("Script should contain 2 arguments: src and dest\n");
+		exit(1);
 	}
 
 	char c;
 	FILE *f1, *f2;
 	
 	if ((f1 = fopen(argv[1], "r")) == NULL) {
-		printf("Eroare la deschiderea fisierului\n");
+		printf("Couldn't open file: %s\n", argv[1]);
 		exit(1);
 	}
 

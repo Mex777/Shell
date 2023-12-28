@@ -5,18 +5,17 @@
 #include <sys/types.h>
 
 int main(int argc, char **argv) {
-
     if (argc != 2) {
-        printf("Eroare la stergerea directorului\n");
+        printf("Directory should be an argument\n");
         exit(1);
     }
 
     if (rmdir(argv[1]) == -1) {
-		printf("Eroare la stergerea directorului\n");
+		printf("Couldn't remove the directory\n");
 		exit(1);
 	}
 
-    printf("Director sters\n");
+    printf("Removed directory\n");
     
     return 0;
 }
