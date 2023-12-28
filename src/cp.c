@@ -4,15 +4,15 @@
 
 int main(int argc, char **argv) {
 
-    if (argc != 3) {
-        printf("Eroare la copierea fisierului\n");
-        exit(1);
-    }
+	if (argc != 3) {
+		printf("Eroare la copierea fisierului\n");
+		 exit(1);
+	}
 
-    char c;
+	char c;
 	FILE *f1, *f2;
 	
-	if((f1 = fopen(argv[1], "r")) == NULL) {
+	if ((f1 = fopen(argv[1], "r")) == NULL) {
 		printf("Eroare la deschiderea fisierului\n");
 		exit(1);
 	}
@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 	f2 = fopen(argv[2], "w");
 	c = fgetc(f1);
 
-	while(c != EOF) {
+	while (c != EOF) {
 		fputc(c, f2);
 		c = fgetc(f1);
 	}

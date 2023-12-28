@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if(remove(argv[1])) {
+    if (remove(argv[1])) {
         printf("Eroare la stergerea fisierului\n");
 		exit(1);
 	}

@@ -11,11 +11,12 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if(rmdir(argv[1]) == -1) {
+    if (rmdir(argv[1]) == -1) {
 		printf("Eroare la stergerea directorului\n");
 		exit(1);
 	}
-    printf("Director sters\n");
 
+    printf("Director sters\n");
+    
     return 0;
 }
