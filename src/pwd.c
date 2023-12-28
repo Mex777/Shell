@@ -4,8 +4,8 @@
 
 int main(int argc, char **argv) {
     char buffer[1024];
-    
-	if (getcwd(buffer, sizeof(buffer)) == NULL) {
+
+    if (getcwd(buffer, sizeof(buffer)) == NULL) {
         printf("Error\n");
         exit(1);
     }

@@ -12,11 +12,11 @@ int main(int argc, char **argv) {
 
     for (int i = 1; i < argc; i++) {
         if (rmdir(argv[i]) == -1) {
-		    printf("Couldn't remove the directory\n");
-		    exit(1);
-	        }
+            printf("Couldn't remove the directory\n");
+            exit(1);
+            }
         printf("Removed directory\n");
     }
-    
+
     return 0;
 }

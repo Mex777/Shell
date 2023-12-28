@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
             printf("Couldn't remove the file\n");
             exit(1);
         }
-        
+
         printf("File removed\n");
     }
 

@@ -4,45 +4,45 @@
 #include <dirent.h>
 
 int main(int argc, char **argv) {
-	DIR *dir;
-	struct dirent *entry;
+    DIR *dir;
+    struct dirent *entry;
 
-	if (argc == 1) {
-		char buffer[1024];
-		if (getcwd(buffer, sizeof(buffer)) == NULL) {
-			printf("Couldn't get the directory\n");
-			exit(1);
-		}
+    if (argc == 1) {
+        char buffer[1024];
+        if (getcwd(buffer, sizeof(buffer)) == NULL) {
+            printf("Couldn't get the directory\n");
+            exit(1);
+        }
 
-		dir = opendir(buffer);
-		if (dir == NULL) {
+    dir = opendir(buffer);
+        if (dir == NULL) {
             printf("Couldn't open the directory\n");
-			exit(1);
-		}
+            exit(1);
+        }
 
-		while ((entry = readdir(dir)) != NULL) {
-			printf("%s\n", entry->d_name);
-		}
-		
-		closedir(dir);
-	}
+        while ((entry = readdir(dir)) != NULL) {
+            printf("%s\n", entry->d_name);
+        }
 
-	else 
-		for (int i = 1; i < argc; i++) {
-			dir = opendir(argv[i]);
+        closedir(dir);
+    }
 
-			if (dir == NULL) {
-			printf("Couldn't open the directory\n");
-			exit(1);
-			}
+    else 
+        for (int i = 1; i < argc; i++) {
+            dir = opendir(argv[i]);
 
-			while ((entry = readdir(dir)) != NULL) {
-			printf("%s\n", entry->d_name);
-			}
+            if (dir == NULL) {
+            printf("Couldn't open the directory\n");
+            exit(1);
+            }
 
-			printf("\n");
-			closedir(dir);
-		}
+            while ((entry = readdir(dir)) != NULL) {
+            printf("%s\n", entry->d_name);
+            }
 
-	return 0;
+            printf("\n");
+            closedir(dir);
+    }
+
+    return 0;
 }
