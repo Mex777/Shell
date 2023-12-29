@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
 #define MAX_SIZE 128
 
@@ -45,7 +46,13 @@ void exec(char *command, char *args[16], int argc) {
 int main() {
     char input[MAX_SIZE];
     char command[MAX_SIZE], *args[16];
+
+    char hostname[MAX_SIZE];
+    gethostname(hostname, sizeof(hostname));
+
     while (1) {
+        printf("%s@%s:%s$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
+
         fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
@@ -56,8 +63,15 @@ int main() {
         input[strlen(input) - 1] = '\0';
 
         int argc = parse(input, command, args);
-        if (vfork() == 0) {
+
+        pid_t pid = vfork();
+
+        if (pid < 0) {
+            perror("fork");
+            exit(-1);
+        } else if (pid == 0) {
             exec(command, args, argc);
+            exit(0);
         }
     }
 
