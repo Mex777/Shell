@@ -38,7 +38,7 @@ void exec(char *command, char *args[16], int argc) {
     strcat(path, command);
 
     args[0] = command;
-    if (execvp(path, args) == -1) {
+    if (execvp(path, args) == -1 && execvp(command, args) == -1) {
         perror("COMMAND");
     }
 }
