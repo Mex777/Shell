@@ -52,13 +52,13 @@ int main() {
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
-    getcwd(cwd, sizeof(cwd));
-    printf("%s@%s:%s$ ", username, hostname, cwd);
     while (1) {
+        getcwd(cwd, sizeof(cwd));
+        printf("%s@%s:%s$ ", username, hostname, cwd);
+
         fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
-            printf("%s@%s:%s$ ", username, hostname, cwd);
             continue;
         }
 
@@ -67,23 +67,14 @@ int main() {
 
         int argc = parse(input, command, args);
 
-        pid_t pid = fork();
+        pid_t pid = vfork();
 
-        if (pid<0){
+        if (pid<0) {
             perror("fork");
             exit(-1);
-        }else if(pid==0){
+        } else if(pid==0) {
             exec(command, args, argc);
             exit(0);
-        }else{
-            int status;
-            waitpid(pid, &status, 0);
-
-            if(WIFEXITED(status)){
-                getcwd(cwd, sizeof(cwd));
-                printf("%s@%s:%s$ ", username, hostname, cwd);
-            }
-
         }
     }
 
