@@ -46,15 +46,12 @@ void exec(char *command, char *args[16], int argc) {
 int main() {
     char input[MAX_SIZE];
     char command[MAX_SIZE], *args[16];
-    char cwd[MAX_SIZE];
 
-    char *username = getlogin();
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
     while (1) {
-        getcwd(cwd, sizeof(cwd));
-        printf("%s@%s:%s$ ", username, hostname, cwd);
+        printf("%s@%s:%s$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
 
         fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
@@ -69,10 +66,10 @@ int main() {
 
         pid_t pid = vfork();
 
-        if (pid<0) {
+        if (pid < 0) {
             perror("fork");
             exit(-1);
-        } else if(pid==0) {
+        } else if (pid == 0) {
             exec(command, args, argc);
             exit(0);
         }
