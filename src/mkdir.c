@@ -11,11 +11,9 @@ int main(int argc, char **argv) {
     }
 
     for (int i = 1; i < argc; i++) {
-
         if (mkdir(argv[i], 0777) == -1) {
             printf("Couldn't create directory %s\n", argv[i]);
             exit(1);
-
         }
 
         printf("Directory created successfully\n");

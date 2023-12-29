@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
             exit(1);
         }
 
-    dir = opendir(buffer);
+        dir = opendir(buffer);
         if (dir == NULL) {
             printf("Couldn't open the directory\n");
             exit(1);
@@ -25,9 +25,7 @@ int main(int argc, char **argv) {
         }
 
         closedir(dir);
-    }
-
-    else 
+    } else {
         for (int i = 1; i < argc; i++) {
             dir = opendir(argv[i]);
 
@@ -43,6 +41,7 @@ int main(int argc, char **argv) {
             printf("\n");
             closedir(dir);
         }
+    }
 
     return 0;
 }

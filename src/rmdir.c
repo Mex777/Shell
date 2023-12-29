@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
         if (rmdir(argv[i]) == -1) {
             printf("Couldn't remove the directory\n");
             exit(1);
-            }
+        }
         printf("Removed directory\n");
     }
 
