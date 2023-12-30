@@ -72,6 +72,8 @@ int main() {
         } else if (pid == 0) {
             exec(command, args, argc);
             exit(0);
+        } else {
+            wait(NULL);
         }
     }
 
