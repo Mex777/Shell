@@ -172,32 +172,32 @@ int main() {
             else {
                 if (chdir(args[1]) == -1) 
                     printf("Error from chdir\n");
-                        
-                else {
-                    char cwd[1024];
-                    if (getcwd(cwd, sizeof(cwd)) == NULL) 
-                        printf("Error from getcwd\n");
-                    else 
-                        printf("Current directory: %s\n", cwd);
-                }
+
+                char cwd[1024];
+
+                if (getcwd(cwd, sizeof(cwd)) == NULL) 
+                    printf("Error from getcwd\n");
+                else 
+                    printf("Current directory: %s\n", cwd);
             }
+            continue;
         }
 
-        else {
-            pid_t pid = vfork();
+        pid_t pid = vfork();
 
-            if (pid < 0) {
-                perror("fork");
-                exit(-1);
-            } else if (pid == 0) {
-                    exec(command, args, argc);
-                    exit(0);
-                }
+        if (pid < 0) {
+            perror("fork");
+            exit(-1);
+            } 
+        else 
+            if (pid == 0) {
+                exec(command, args, argc);
+                exit(0);
+            }
 
             else {
                 wait(NULL);
             }
-        }
     }
     
     return 0;
