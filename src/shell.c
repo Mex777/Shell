@@ -5,6 +5,15 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_BOLD "\x1b[1m"
+
 #define MAX_SIZE 128
 #define MAX_PIPES 10
 
@@ -135,7 +144,7 @@ int main() {
     gethostname(hostname, sizeof(hostname));
 
     while (1) {
-        printf("%s@%s:%s$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
+        printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
 
         fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
