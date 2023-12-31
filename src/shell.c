@@ -172,13 +172,6 @@ int main() {
             else {
                 if (chdir(args[1]) == -1) 
                     printf("Error from chdir\n");
-
-                char cwd[1024];
-
-                if (getcwd(cwd, sizeof(cwd)) == NULL) 
-                    printf("Error from getcwd\n");
-                else 
-                    printf("Current directory: %s\n", cwd);
             }
             continue;
         }
