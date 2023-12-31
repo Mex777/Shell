@@ -174,19 +174,28 @@ int main() {
 
         int argc = parse(input, command, args);
 
+        if (strcmp(command, "cd") == 0) {
+            if (chdir(args[1]) == -1) {
+                perror("CD");
+            }
+
+            continue;
+        }
+
         pid_t pid = vfork();
 
         if (pid < 0) {
             perror("fork");
             exit(-1);
-        } else if (pid == 0) {
+        }
+
+        if (pid == 0) {
             exec(command, args, argc);
             exit(0);
-        } else {
-            wait(NULL);
-        }
+        } 
+
+        wait(NULL);
     }
-
-
+    
     return 0;
 }
