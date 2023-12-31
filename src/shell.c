@@ -142,7 +142,6 @@ int main() {
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
-    system("neofetch");
 
     while (1) {
         printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
