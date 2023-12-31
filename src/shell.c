@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
@@ -143,7 +144,8 @@ int main() {
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
-    while (1) {
+    int totalBackground = 0;
+    while (true) {
         printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
 
         fgets(input, MAX_SIZE, stdin);
@@ -155,6 +157,13 @@ int main() {
         // removes "\n" from end of the line
         input[strlen(input) - 1] = '\0';
         strip(input, ' ');
+
+        bool runInBackground = false;
+        if (input[strlen(input) - 1] == '&') {
+            runInBackground = true;
+            ++totalBackground;
+            input[strlen(input) - 1] = '\0';
+        }
 
         // pipe operator logic
         if (strstr(input, "|") != NULL) {
@@ -192,9 +201,13 @@ int main() {
         if (pid == 0) {
             exec(command, args, argc);
             exit(0);
-        } 
-
-        wait(NULL);
+        } else {
+            if (runInBackground == false) {
+                waitpid(pid, NULL, 0);
+            } else {
+                printf("[%d] %d\n", totalBackground, pid);
+            }
+        }
     }
     
     return 0;
