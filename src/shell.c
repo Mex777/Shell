@@ -165,7 +165,6 @@ int main() {
             input[strlen(input) - 1] = '\0';
         }
 
-
         // pipe operator logic
         if (strstr(input, "|") != NULL) {
             int num_pipes = 0;
@@ -194,7 +193,7 @@ int main() {
             exit(0);
         } else {
             if (runInBackground == false) {
-                wait(NULL);
+                waitpid(pid, NULL, 0);
             } else {
                 printf("[%d] %d\n", totalBackground, pid);
             }
