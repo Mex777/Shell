@@ -165,43 +165,40 @@ int main() {
 
         int argc = parse(input, command, args);
 
-        pid_t pid = vfork();
+        if (strcmp(command, "cd") == 0) {
+            if (argc != 2) 
+                printf("Couldn't change directory\n");
 
-        if (pid < 0) {
-            perror("fork");
-            exit(-1);
-        } else if (pid == 0) {
-            if (strcmp(command, "cd") == 0) {
-                if (argc != 2) {
-                    printf("Couldn't change directory\n");
+            else {
+                if (chdir(args[1]) == -1) 
+                    printf("Error from chdir\n");
+                        
+                else {
+                    char cwd[1024];
+                    if (getcwd(cwd, sizeof(cwd)) == NULL) 
+                        printf("Error from getcwd\n");
+                    else 
+                        printf("Current directory: %s\n", cwd);
+                }
+            }
+        }
+
+        else {
+            pid_t pid = vfork();
+
+            if (pid < 0) {
+                perror("fork");
+                exit(-1);
+            } else if (pid == 0) {
+                    exec(command, args, argc);
                     exit(0);
                 }
 
-                if (chdir(args[1]) == -1) {
-                    printf("Error from chdir\n");
-                    exit(1);
-                    }
-
-                char cwd[1024];
-                if (getcwd(cwd, sizeof(cwd)) == NULL) {
-                    printf("Error from getcwd\n");
-                    exit(1);
-                    }
-
-                printf("Current directory: %s\n", cwd);
-                _exit(0);
-                }
-
             else {
-                exec(command, args, argc);
-                exit(0);
+                wait(NULL);
             }
-
-        } else {
-            wait(NULL);
         }
     }
-
-
+    
     return 0;
 }
