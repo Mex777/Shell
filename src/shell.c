@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 
 #define MAX_SIZE 128
+#define MAX_PIPES 10
 
 // for now splits the input by space
 // puts the first token in the command pointer
@@ -31,15 +32,98 @@ int parse(char *input, char *command, char *args[16]) {
     return argCounter;
 }
 
+char *strip(char *str, char element) {
+    int index = 0;
+    while (index < strlen(str) && str[index] == element) {
+        ++index;
+    }
+
+    // strips front
+    for (int i = 0; i < strlen(str) - index + 1; ++i) {
+        str[i] = str[i + index];
+    }
+
+    // strips back
+    index = strlen(str) - 1;
+    while (str[index] == element && index >= 0) {
+        str[index] = '\0';
+    }
+
+    return str;
+}
+
 // checks for implementation in bin folder
 // otherwise looks for implementation in PATH
 void exec(char *command, char *args[16], int argc) {
+    strip(command, ' ');
+    for (int i = 1; i < argc; ++i) {
+        strip(args[i], ' ');
+    }
+
     char path[MAX_SIZE] = "../bin/";
     strcat(path, command);
+
 
     args[0] = command;
     if (execvp(path, args) == -1 && execvp(command, args) == -1) {
         perror("COMMAND");
+    }
+}
+
+void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
+    int pipefds[MAX_PIPES - 1][2];
+
+    for (int i = 0; i < num_pipes - 1; ++i) {
+        if (pipe(pipefds[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int i = 0; i < num_pipes; ++i) {
+        pid_t currPid = fork();
+
+        if (currPid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (currPid == 0) {
+            // redirect stdout to the write end of the next pipe
+            if (i < num_pipes - 1) {
+                dup2(pipefds[i][1], STDOUT_FILENO);
+            }
+
+            // redirect stdin to the read end of the previous pipe
+            if (i > 0) {
+                dup2(pipefds[i - 1][0], STDIN_FILENO);
+            }
+
+            // close all pipe ends in the child
+            for (int j = 0; j < num_pipes - 1; ++j) {
+                close(pipefds[j][0]);
+                close(pipefds[j][1]);
+            }
+
+            // execute the command
+            char *command = commands[i];
+            char *args[16];
+            strip(command, ' ');
+            int argc = parse(command, command, args);
+            exec(command, args, argc);
+            exit(1);
+        }
+    }
+
+    // close all pipe ends in the parent
+    for (int i = 0; i < num_pipes - 1; ++i) {
+        close(pipefds[i][0]);
+        close(pipefds[i][1]);
+    }
+
+    // wait for all child processes after they have been created
+    for (int i = 0; i < num_pipes; ++i) {
+        wait(NULL);
     }
 }
 
@@ -61,6 +145,23 @@ int main() {
 
         // removes "\n" from end of the line
         input[strlen(input) - 1] = '\0';
+        strip(input, ' ');
+
+        // pipe operator logic
+        if (strstr(input, "|") != NULL) {
+            int num_pipes = 0;
+            char *commands[MAX_PIPES];
+
+            // split the input into commands based on pipe operator "|"
+            char *token = strtok(input, "|");
+            while (token != NULL && num_pipes < MAX_PIPES) {
+                commands[num_pipes++] = strip(token, ' ');
+                token = strtok(NULL, "|");
+            }
+
+            exec_pipes(commands, num_pipes);
+            continue;
+        }
 
         int argc = parse(input, command, args);
 
@@ -76,6 +177,7 @@ int main() {
             wait(NULL);
         }
     }
+
 
     return 0;
 }
