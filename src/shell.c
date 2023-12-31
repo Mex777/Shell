@@ -166,13 +166,10 @@ int main() {
         int argc = parse(input, command, args);
 
         if (strcmp(command, "cd") == 0) {
-            if (argc != 2) 
-                printf("Couldn't change directory\n");
-
-            else {
-                if (chdir(args[1]) == -1) 
-                    printf("Error from chdir\n");
+            if (chdir(args[1]) == -1) {
+                perror("CD");
             }
+
             continue;
         }
 
@@ -181,16 +178,14 @@ int main() {
         if (pid < 0) {
             perror("fork");
             exit(-1);
-            } 
-        else 
-            if (pid == 0) {
-                exec(command, args, argc);
-                exit(0);
-            }
+        }
 
-            else {
-                wait(NULL);
-            }
+        if (pid == 0) {
+            exec(command, args, argc);
+            exit(0);
+        } 
+
+        wait(NULL);
     }
     
     return 0;
