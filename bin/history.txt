@@ -1,0 +1,11 @@
+ls
+ls
+pwd
+ls
+pwd
+ls
+ls
+ls
+pwd
+ls
+ls

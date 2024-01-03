@@ -137,9 +137,57 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
     }
 }
 
+void loadingHistory(char lines[50][MAX_SIZE]) {
+    FILE *file = fopen("history.txt", "r");
+    if (file == NULL) {
+        perror("Error opening history file");
+        exit(-1);
+    }
+
+    char line[MAX_SIZE];
+    int count = 0;
+    int i = 0;
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        count++;
+    }
+
+    fseek(file, 0, SEEK_SET);
+    if (count > 50){
+        for (i = 0; i < count - 50; i++){
+            fgets(line, sizeof(line), file);
+        }
+    }
+
+    i=0;
+    while (fgets(line, sizeof(line), file) != NULL && i < 50) {
+        strcpy(lines[i], line);
+        i++;
+    }
+
+    fclose(file);
+}
+
+void addToHistoryFile(char *command) {
+    FILE *file = fopen("history.txt", "a");
+    if (file == NULL) {
+        perror("Error opening history file");
+        exit(-1);
+    }
+        fprintf(file, "%s\n", command);
+        fclose(file);
+}
+
 int main() {
     char input[MAX_SIZE];
     char command[MAX_SIZE], *args[16];
+
+    char history[50][MAX_SIZE];
+    int nrCommands=0;
+    loadingHistory(history);
+    for (int i = 0; i < 50 && history[i] != NULL; i++) {
+        nrCommands++;
+    }
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
@@ -157,6 +205,14 @@ int main() {
         // removes "\n" from end of the line
         input[strlen(input) - 1] = '\0';
         strip(input, ' ');
+
+        addToHistoryFile(input);
+        for (int i = nrCommands - 1; i >= 0; i++){
+            if (i < 49) {
+                strcpy(history[i + 1], history[i]);
+            }
+        }
+        strcpy(history[0], input);
 
         bool runInBackground = false;
         if (input[strlen(input) - 1] == '&') {
