@@ -137,8 +137,8 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
     }
 }
 
-void loadingHistory(char lines[50][MAX_SIZE]) {
-    FILE *file = fopen("history.txt", "r");
+void loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
+    FILE *file = fopen(historyPath, "r");
     if (file == NULL) {
         perror("Error opening history file");
         exit(-1);
@@ -168,23 +168,25 @@ void loadingHistory(char lines[50][MAX_SIZE]) {
     fclose(file);
 }
 
-void addToHistoryFile(char *command) {
-    FILE *file = fopen("history.txt", "a");
+void addToHistoryFile(const char *historyPath, char *command) {
+    FILE *file = fopen(historyPath, "a");
     if (file == NULL) {
         perror("Error opening history file");
         exit(-1);
     }
-        fprintf(file, "%s\n", command);
-        fclose(file);
+    fprintf(file, "%s\n", command);
+    fclose(file);
 }
 
 int main() {
     char input[MAX_SIZE];
     char command[MAX_SIZE], *args[16];
 
+    char historyPath[MAX_SIZE];
+    snprintf(historyPath, sizeof(historyPath), "%s/history.txt", getcwd(NULL, MAX_SIZE));
     char history[50][MAX_SIZE];
     int nrCommands=0;
-    loadingHistory(history);
+    loadingHistory(historyPath, history);
     for (int i = 0; i < 50 && history[i] != NULL; i++) {
         nrCommands++;
     }
@@ -206,7 +208,7 @@ int main() {
         input[strlen(input) - 1] = '\0';
         strip(input, ' ');
 
-        addToHistoryFile(input);
+        addToHistoryFile(historyPath, input);
         for (int i = nrCommands - 1; i >= 0; i++){
             if (i < 49) {
                 strcpy(history[i + 1], history[i]);
