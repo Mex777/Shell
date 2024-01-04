@@ -19,38 +19,10 @@
 
 #define MAX_SIZE 128
 #define MAX_PIPES 10
+#define MAX_COMMANDS 128
 
 static jmp_buf env;
-
-// handle the SIGINT signal (Ctrl+C)
-void handle_suspend(int signo) {
-    printf("\n");
-    siglongjmp(env, 42);
-}
-
-// for now splits the input by space
-// puts the first token in the command pointer
-// puts the other tokens in the args pointer array
-// the args array will end with NULL
-// returns the number of arguments the command has
-int parse(char *input, char *command, char *args[16]) {
-    char *token = strtok(input, " ");
-    strcpy(command, token);
-
-    int argCounter = 0;
-    ++argCounter;
-    while (token != NULL) {
-        token = strtok(NULL, " ");
-        if (token != NULL) {
-            args[argCounter] = token;
-            ++argCounter;
-        }
-    }
-
-    args[argCounter] = NULL;
-
-    return argCounter;
-}
+int commandCnt = 0;
 
 char *strip(char *str, char element) {
     int index = 0;
@@ -72,9 +44,79 @@ char *strip(char *str, char element) {
     return str;
 }
 
+// handle the SIGINT signal (Ctrl+C)
+void handle_suspend(int signo) {
+    printf("\n");
+    siglongjmp(env, 42);
+}
+
+
+
+// for now splits the input by space
+// puts the first token in the command pointer
+// puts the other tokens in the args pointer array
+// the args array will end with NULL
+// returns the number of arguments the command has
+int parse_command(char *input, char *command, char *args[16]) {
+    strip(input, ' ');
+    char *token = strtok(input, " ");
+    strcpy(command, token);
+
+    int argCounter = 0;
+    ++argCounter;
+    while (token != NULL) {
+        token = strtok(NULL, " ");
+        if (token != NULL) {
+            args[argCounter] = token;
+            ++argCounter;
+        }
+    }
+
+    args[argCounter] = NULL;
+
+    return argCounter;
+}
+
+int parse_input(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COMMANDS]) {
+    strip(inp, ' ');
+    char *input = inp;
+
+    char *separators[4] = {"&&", "||", ";", "&"};
+    const int cntSeparators = 4;
+
+    bool go = true;
+    int commandCnt = 0;
+    while (go) {
+        strip(input, ' ');
+        go = false;
+        char *firstSeparator = NULL;
+        int pos = strlen(input) + 1;
+        for (int i = 0; i < cntSeparators; ++i) {
+            char *curr = strstr(input, separators[i]);
+            if (curr != NULL && (curr - input) < pos) {
+                pos = curr - input;
+                firstSeparator = separators[i];
+            }
+        }
+
+        // printf("input: %s\n", input);
+        if (firstSeparator != NULL) {
+            commands[commandCnt] = strtok(input, firstSeparator);
+            go = true;
+            separator[commandCnt] = firstSeparator;
+            input += pos + strlen(firstSeparator);
+        }  else {
+            commands[commandCnt] = input;
+        }
+        ++commandCnt;
+    }
+
+    return commandCnt;
+}
+
 // checks for implementation in bin folder
 // otherwise looks for implementation in PATH
-void exec(char *command, char *args[16], int argc) {
+int exec(char *command, char *args[16], int argc) {
     strip(command, ' ');
     for (int i = 1; i < argc; ++i) {
         strip(args[i], ' ');
@@ -87,6 +129,63 @@ void exec(char *command, char *args[16], int argc) {
     args[0] = command;
     if (execvp(path, args) == -1 && execvp(command, args) == -1) {
         perror("COMMAND");
+        return -1;
+    }
+
+    return 0;
+}
+
+int totalBackground = 0;
+void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
+    char command[MAX_SIZE], *args[16];
+    for (int i = 0; i < cnt; ++i) {
+        int argc = parse_command(commands[i], command, args);
+
+        if (strcmp(command, "cd") == 0) {
+            if (chdir(args[1]) == -1) {
+                perror("CD");
+            }
+
+            continue;
+        }
+
+        if (strcmp(command, "exit") == 0) {
+            exit(0);
+        }
+
+        bool runInBackground = (i < cnt - 1 && strcmp(seps[i], "&") == 0);
+        pid_t pid = fork();
+        int status, exitStatus;
+
+        if (pid < 0) {
+            perror("fork");
+            exit(-1);
+        }
+
+        if (pid == 0) {
+            signal(SIGINT, SIG_DFL);
+            exec(command, args, argc);
+            exit(0);
+        } else {
+            if (runInBackground == false) {
+                pid_t child_pid = waitpid(pid, &status, 0);
+                if (WIFEXITED(status)) {
+                    exitStatus = WEXITSTATUS(status);
+                }
+
+            } else {
+                ++totalBackground;
+                printf("[%d] %d\n", totalBackground, pid);
+            }
+        }
+
+        if (i < cnt - 1 && strcmp(seps[i], "&&") == 0 && exitStatus != EXIT_SUCCESS) {
+            return;
+        }
+
+        if (i < cnt - 1 && strcmp(seps[i], "||") == 0 && exitStatus == EXIT_SUCCESS) {
+           return; 
+        }
     }
 }
 
@@ -125,12 +224,20 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
                 close(pipefds[j][1]);
             }
 
+
             // execute the command
-            char *command = commands[i];
-            char *args[16];
-            strip(command, ' ');
-            int argc = parse(command, command, args);
-            exec(command, args, argc);
+            // char *command = commands[i];
+            // char *args[16];
+            // strip(command, ' ');
+            // int argc = parse_command(command, command, args);
+            // exec(command, args, argc);
+            char *input = commands[i];
+            char *commands[MAX_COMMANDS];
+            char *seps[MAX_COMMANDS];
+            int cnt = parse_input(input, commands, seps);
+            exec_commands(commands, seps, cnt);
+
+
             exit(1);
         }
     }
@@ -149,19 +256,18 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
 
 int main() {
     char input[MAX_SIZE];
-    char command[MAX_SIZE], *args[16];
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
     signal(SIGINT, handle_suspend);
 
-    int totalBackground = 0;
     while (true) {
         sigsetjmp(env, 1);
         printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
 
         fgets(input, MAX_SIZE, stdin);
+
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
             continue;
@@ -171,12 +277,15 @@ int main() {
         input[strlen(input) - 1] = '\0';
         strip(input, ' ');
 
-        bool runInBackground = false;
-        if (input[strlen(input) - 1] == '&') {
-            runInBackground = true;
-            ++totalBackground;
-            input[strlen(input) - 1] = '\0';
-        }
+        char *commands[MAX_COMMANDS];
+        char *seps[MAX_COMMANDS];
+
+        // printf("%d\n", cnt);
+        // for (int i = 0; i < cnt - 1; ++i) {
+        //     printf("%s, sep: %s\n", commands[i], seps[i]);
+        // }
+        // printf("%s\n", commands[cnt - 1]);
+
 
         // pipe operator logic
         if (strstr(input, "|") != NULL) {
@@ -194,38 +303,8 @@ int main() {
             continue;
         }
 
-        int argc = parse(input, command, args);
-
-        if (strcmp(command, "cd") == 0) {
-            if (chdir(args[1]) == -1) {
-                perror("CD");
-            }
-
-            continue;
-        }
-
-        if (strcmp(command, "exit") == 0) {
-            exit(0);
-        }
-
-        pid_t pid = fork();
-
-        if (pid < 0) {
-            perror("fork");
-            exit(-1);
-        }
-
-        if (pid == 0) {
-            signal(SIGINT, SIG_DFL);
-            exec(command, args, argc);
-            exit(0);
-        } else {
-            if (runInBackground == false) {
-                waitpid(pid, NULL, 0);
-            } else {
-                printf("[%d] %d\n", totalBackground, pid);
-            }
-        }
+        int cnt = parse_input(input, commands, seps);
+        exec_commands(commands, seps, cnt);
     }
     
     return 0;
