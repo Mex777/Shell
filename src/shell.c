@@ -136,12 +136,82 @@ int exec(char *command, char *args[16], int argc) {
     return 0;
 }
 
+void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
+    int pipefds[MAX_PIPES - 1][2];
+    for (int i = 0; i < num_pipes - 1; ++i) {
+        if (pipe(pipefds[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int i = 0; i < num_pipes; ++i) {
+        pid_t currPid = fork();
+
+        if (currPid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (currPid == 0) {
+            // redirect stdout to the write end of the next pipe
+            if (i < num_pipes - 1) {
+                dup2(pipefds[i][1], STDOUT_FILENO);
+            }
+
+            // redirect stdin to the read end of the previous pipe
+            if (i > 0) {
+                dup2(pipefds[i - 1][0], STDIN_FILENO);
+            }
+
+            // close all pipe ends in the child
+            for (int j = 0; j < num_pipes - 1; ++j) {
+                close(pipefds[j][0]);
+                close(pipefds[j][1]);
+            }
+
+            char *input = commands[i];
+            char command[MAX_SIZE], *args[16];
+            int argc = parse_command(input, command, args);
+            exec(command, args, argc);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // close all pipe ends in the parent
+    for (int i = 0; i < num_pipes - 1; ++i) {
+        close(pipefds[i][0]);
+        close(pipefds[i][1]);
+    }
+
+    // wait for all child processes after they have been created
+    for (int i = 0; i < num_pipes; ++i) {
+        wait(NULL);
+    }
+}
+
 int totalBackground = 0;
 void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
     char command[MAX_SIZE], *args[16];
     for (int i = 1; i <= cnt; ++i) {
         if (strcmp(commands[i - 1], "") == 0) {
             return;
+        }
+
+        // pipe operator logic
+        if (strstr(commands[i - 1], "|") != NULL) {
+            int num_pipes = 0;
+            char *comms[MAX_PIPES];
+
+            // splits the input into commands based on pipe operator "|"
+            char *token = strtok(commands[i - 1], "|");
+            while (token != NULL && num_pipes < MAX_PIPES) {
+                comms[num_pipes++] = strip(token, ' ');
+                token = strtok(NULL, "|");
+            }
+
+            exec_pipes(comms, num_pipes);
+            continue;
         }
 
         int argc = parse_command(commands[i - 1], command, args);
@@ -202,62 +272,6 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
     }
 }
 
-void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
-    int pipefds[MAX_PIPES - 1][2];
-
-    for (int i = 0; i < num_pipes - 1; ++i) {
-        if (pipe(pipefds[i]) == -1) {
-            perror("pipe");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    for (int i = 0; i < num_pipes; ++i) {
-        pid_t currPid = fork();
-
-        if (currPid == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        }
-
-        if (currPid == 0) {
-            // redirect stdout to the write end of the next pipe
-            if (i < num_pipes - 1) {
-                dup2(pipefds[i][1], STDOUT_FILENO);
-            }
-
-            // redirect stdin to the read end of the previous pipe
-            if (i > 0) {
-                dup2(pipefds[i - 1][0], STDIN_FILENO);
-            }
-
-            // close all pipe ends in the child
-            for (int j = 0; j < num_pipes - 1; ++j) {
-                close(pipefds[j][0]);
-                close(pipefds[j][1]);
-            }
-
-            char *input = commands[i];
-            char *commands[MAX_COMMANDS];
-            char *seps[MAX_COMMANDS];
-            int cnt = parse_input(input, commands, seps);
-            exec_commands(commands, seps, cnt);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    // close all pipe ends in the parent
-    for (int i = 0; i < num_pipes - 1; ++i) {
-        close(pipefds[i][0]);
-        close(pipefds[i][1]);
-    }
-
-    // wait for all child processes after they have been created
-    for (int i = 0; i < num_pipes; ++i) {
-        wait(NULL);
-    }
-}
-
 int main() {
     char input[MAX_SIZE];
 
@@ -285,23 +299,6 @@ int main() {
         char *seps[MAX_COMMANDS];
 
         int cnt = parse_input(input, commands, seps);
-
-        // pipe operator logic
-        // if (strstr(input, "|") != NULL) {
-        //     int num_pipes = 0;
-        //     char *commands[MAX_PIPES];
-
-        //     // splits the input into commands based on pipe operator "|"
-        //     char *token = strtok(input, "|");
-        //     while (token != NULL && num_pipes < MAX_PIPES) {
-        //         commands[num_pipes++] = strip(token, ' ');
-        //         token = strtok(NULL, "|");
-        //     }
-
-        //     exec_pipes(commands, num_pipes);
-        //     continue;
-        // }
-
         exec_commands(commands, seps, cnt);
     }
     
