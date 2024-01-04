@@ -209,12 +209,13 @@ int main() {
         strip(input, ' ');
 
         addToHistoryFile(historyPath, input);
-        for (int i = nrCommands - 1; i >= 0; i++){
-            if (i < 49) {
-                strcpy(history[i + 1], history[i]);
-            }
+        for (int i = nrCommands - 2; i >= 0; i--){
+            strcpy(history[i + 1], history[i]);
         }
         strcpy(history[0], input);
+        if (nrCommands < 50){
+            nrCommands++;
+        }
 
         bool runInBackground = false;
         if (input[strlen(input) - 1] == '&') {
