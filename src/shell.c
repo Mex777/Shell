@@ -50,9 +50,7 @@ void handle_suspend(int signo) {
     siglongjmp(env, 42);
 }
 
-
-
-// for now splits the input by space
+// splits the input by space
 // puts the first token in the command pointer
 // puts the other tokens in the args pointer array
 // the args array will end with NULL
@@ -77,6 +75,9 @@ int parse_command(char *input, char *command, char *args[16]) {
     return argCounter;
 }
 
+// splits from left to right by &&, ||, ;, &
+// commands are put into the commands array
+// separator[i] - the separator(logical operator) between the command i and i + 1
 int parse_input(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COMMANDS]) {
     strip(inp, ' ');
     char *input = inp;
@@ -91,6 +92,8 @@ int parse_input(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COM
         go = false;
         char *firstSeparator = NULL;
         int pos = strlen(input) + 1;
+
+        // looks from left to right for the first separator if there's any
         for (int i = 0; i < cntSeparators; ++i) {
             char *curr = strstr(input, separators[i]);
             if (curr != NULL && (curr - input) < pos) {
@@ -99,16 +102,15 @@ int parse_input(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COM
             }
         }
 
-        // printf("input: %s\n", input);
         if (firstSeparator != NULL) {
-            commands[commandCnt] = strtok(input, firstSeparator);
+            commands[commandCnt++] = strtok(input, firstSeparator);
             go = true;
             separator[commandCnt] = firstSeparator;
             input += pos + strlen(firstSeparator);
         }  else {
-            commands[commandCnt] = input;
+            commands[commandCnt++] = input;
+            separator[commandCnt] = separators[2];
         }
-        ++commandCnt;
     }
 
     return commandCnt;
@@ -125,7 +127,6 @@ int exec(char *command, char *args[16], int argc) {
     char path[MAX_SIZE] = "../bin/";
     strcat(path, command);
 
-
     args[0] = command;
     if (execvp(path, args) == -1 && execvp(command, args) == -1) {
         perror("COMMAND");
@@ -138,12 +139,24 @@ int exec(char *command, char *args[16], int argc) {
 int totalBackground = 0;
 void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
     char command[MAX_SIZE], *args[16];
-    for (int i = 0; i < cnt; ++i) {
-        int argc = parse_command(commands[i], command, args);
+    for (int i = 1; i <= cnt; ++i) {
+        if (strcmp(commands[i - 1], "") == 0) {
+            return;
+        }
 
+        int argc = parse_command(commands[i - 1], command, args);
         if (strcmp(command, "cd") == 0) {
-            if (chdir(args[1]) == -1) {
+            int status = chdir(args[1]);
+            if (status == -1) {
                 perror("CD");
+            }
+
+            if (strcmp(seps[i], "||") == 0 && status == EXIT_SUCCESS) {
+                return; 
+            }
+
+            if (strcmp(seps[i], "&&") == 0 && status != EXIT_SUCCESS) {
+                return;
             }
 
             continue;
@@ -153,19 +166,19 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
             exit(0);
         }
 
-        bool runInBackground = (i < cnt - 1 && strcmp(seps[i], "&") == 0);
+        bool runInBackground = (strcmp(seps[i], "&") == 0);
         pid_t pid = fork();
         int status, exitStatus;
 
         if (pid < 0) {
             perror("fork");
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
 
         if (pid == 0) {
             signal(SIGINT, SIG_DFL);
             exec(command, args, argc);
-            exit(0);
+            exit(EXIT_FAILURE);
         } else {
             if (runInBackground == false) {
                 pid_t child_pid = waitpid(pid, &status, 0);
@@ -179,11 +192,11 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
             }
         }
 
-        if (i < cnt - 1 && strcmp(seps[i], "&&") == 0 && exitStatus != EXIT_SUCCESS) {
+        if (strcmp(seps[i], "&&") == 0 && exitStatus != EXIT_SUCCESS) {
             return;
         }
 
-        if (i < cnt - 1 && strcmp(seps[i], "||") == 0 && exitStatus == EXIT_SUCCESS) {
+        if (strcmp(seps[i], "||") == 0 && exitStatus == EXIT_SUCCESS) {
            return; 
         }
     }
@@ -224,21 +237,12 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
                 close(pipefds[j][1]);
             }
 
-
-            // execute the command
-            // char *command = commands[i];
-            // char *args[16];
-            // strip(command, ' ');
-            // int argc = parse_command(command, command, args);
-            // exec(command, args, argc);
             char *input = commands[i];
             char *commands[MAX_COMMANDS];
             char *seps[MAX_COMMANDS];
             int cnt = parse_input(input, commands, seps);
             exec_commands(commands, seps, cnt);
-
-
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -280,30 +284,24 @@ int main() {
         char *commands[MAX_COMMANDS];
         char *seps[MAX_COMMANDS];
 
-        // printf("%d\n", cnt);
-        // for (int i = 0; i < cnt - 1; ++i) {
-        //     printf("%s, sep: %s\n", commands[i], seps[i]);
-        // }
-        // printf("%s\n", commands[cnt - 1]);
-
+        int cnt = parse_input(input, commands, seps);
 
         // pipe operator logic
-        if (strstr(input, "|") != NULL) {
-            int num_pipes = 0;
-            char *commands[MAX_PIPES];
+        // if (strstr(input, "|") != NULL) {
+        //     int num_pipes = 0;
+        //     char *commands[MAX_PIPES];
 
-            // split the input into commands based on pipe operator "|"
-            char *token = strtok(input, "|");
-            while (token != NULL && num_pipes < MAX_PIPES) {
-                commands[num_pipes++] = strip(token, ' ');
-                token = strtok(NULL, "|");
-            }
+        //     // splits the input into commands based on pipe operator "|"
+        //     char *token = strtok(input, "|");
+        //     while (token != NULL && num_pipes < MAX_PIPES) {
+        //         commands[num_pipes++] = strip(token, ' ');
+        //         token = strtok(NULL, "|");
+        //     }
 
-            exec_pipes(commands, num_pipes);
-            continue;
-        }
+        //     exec_pipes(commands, num_pipes);
+        //     continue;
+        // }
 
-        int cnt = parse_input(input, commands, seps);
         exec_commands(commands, seps, cnt);
     }
     
