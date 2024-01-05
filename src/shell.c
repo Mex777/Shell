@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/termios.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -178,9 +179,18 @@ void addToHistoryFile(const char *historyPath, char *command) {
     fclose(file);
 }
 
+void setTerminalMode() {
+    struct termios new_termios;
+    tcgetattr(STDIN_FILENO, &new_termios);
+    new_termios.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+}
+
 int main() {
-    char input[MAX_SIZE];
+    char input[MAX_SIZE]; 
     char command[MAX_SIZE], *args[16];
+
+    setTerminalMode();
 
     char historyPath[MAX_SIZE];
     snprintf(historyPath, sizeof(historyPath), "%s/history.txt", getcwd(NULL, MAX_SIZE));
@@ -196,9 +206,67 @@ int main() {
 
     int totalBackground = 0;
     while (true) {
-        printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
+        input[0] = '\0';
+        int inputLength = 0;
+        int cursorPosition = 0;
+        int inputIndex = 0;
+        int currentCommand = 0;
 
-        fgets(input, MAX_SIZE, stdin);
+        while(1){
+            int printedLen = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
+            printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + printedLen + 1);
+
+            char c = getchar();
+
+            if (c == 27) {
+                c = getchar();
+                c = getchar();
+
+                if (c == 'A') {
+                    if (currentCommand < nrCommands-1) {
+                        strncpy(input, history[currentCommand], MAX_SIZE);
+                        input[MAX_SIZE] = '\0';
+                        inputLength = strlen(input);
+                        cursorPosition = strlen(input);
+                        currentCommand++;
+                    }
+                } else if (c == 'B') {
+                    if (currentCommand > 0) {
+                        strncpy(input, history[currentCommand], MAX_SIZE);
+                        input[MAX_SIZE] = '\0';
+                        inputLength = strlen(input);
+                        cursorPosition = strlen(input);
+                        currentCommand--;
+                    }
+                } else if (c == 'C') {
+                    if (cursorPosition < inputLength) {
+                        cursorPosition++;
+                    }
+                } else if (c == 'D') {
+                    if (cursorPosition > 0) {
+                        cursorPosition--;
+                    }
+                }
+            } else if (c == 127 || c == 8) {
+                if (cursorPosition > 0) {
+                    memmove(&input[cursorPosition - 1], &input[cursorPosition], inputLength - cursorPosition + 1);
+                    cursorPosition--;
+                    inputLength--;
+                }
+            } else if (c == '\n') {
+                input[cursorPosition++] = c;
+                printf("\n");
+                break;
+            } else if (inputLength < MAX_SIZE && c >= 32 && c <= 126) {
+                for (int i = inputLength; i > cursorPosition; i--){
+                    input[i]=input[i - 1];
+                }
+                input[cursorPosition++] = c;
+                inputLength++;
+            }
+        }
+
+        // fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
             continue;
