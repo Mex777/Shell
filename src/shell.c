@@ -138,7 +138,7 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
     }
 }
 
-void loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
+int loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
     FILE *file = fopen(historyPath, "r");
     if (file == NULL) {
         perror("Error opening history file");
@@ -148,6 +148,7 @@ void loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
     char line[MAX_SIZE];
     int count = 0;
     int i = 0;
+    int lastLines = 50;
 
     while (fgets(line, sizeof(line), file) != NULL) {
         count++;
@@ -160,13 +161,20 @@ void loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
         }
     }
 
+    if (count < lastLines){
+        lastLines = count;
+    }
     i=0;
-    while (fgets(line, sizeof(line), file) != NULL && i < 50) {
-        strcpy(lines[i], line);
-        i++;
+    while (fgets(line, sizeof(line), file) != NULL && i < 50 && i < count) {
+        if (line != "\n") {
+            line[strlen(line) - 1] = '\0';
+            strcpy(lines[lastLines - i - 1], line);
+            i++;
+        }
     }
 
     fclose(file);
+    return lastLines;
 }
 
 void addToHistoryFile(const char *historyPath, char *command) {
@@ -187,7 +195,6 @@ void setTerminalMode() {
 }
 
 int main() {
-    char input[MAX_SIZE]; 
     char command[MAX_SIZE], *args[16];
 
     setTerminalMode();
@@ -196,25 +203,30 @@ int main() {
     snprintf(historyPath, sizeof(historyPath), "%s/history.txt", getcwd(NULL, MAX_SIZE));
     char history[50][MAX_SIZE];
     int nrCommands=0;
-    loadingHistory(historyPath, history);
-    for (int i = 0; i < 50 && history[i] != NULL; i++) {
-        nrCommands++;
-    }
+    nrCommands = loadingHistory(historyPath, history);
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
     int totalBackground = 0;
     while (true) {
-        input[0] = '\0';
+        char input[MAX_SIZE] = ""; 
         int inputLength = 0;
         int cursorPosition = 0;
-        int inputIndex = 0;
-        int currentCommand = 0;
+        int currentCommand = -1;
+        int eraserCount = 0;
 
         while(1){
             int printedLen = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
             printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + printedLen + 1);
+
+            if (eraserCount != 0) {
+                for (int i = 0; i < eraserCount; i++){
+                    printf(" ");
+                }
+                printf("\033[%dG", cursorPosition + printedLen + 1);
+                eraserCount = 0;
+            }
 
             char c = getchar();
 
@@ -223,20 +235,34 @@ int main() {
                 c = getchar();
 
                 if (c == 'A') {
-                    if (currentCommand < nrCommands-1) {
+                    if (currentCommand < nrCommands - 1) {
+                        currentCommand++;
+                        if (strlen(history[currentCommand]) < inputLength) {
+                            eraserCount = inputLength - strlen(history[currentCommand]);
+                        }
                         strncpy(input, history[currentCommand], MAX_SIZE);
                         input[MAX_SIZE] = '\0';
                         inputLength = strlen(input);
                         cursorPosition = strlen(input);
-                        currentCommand++;
                     }
                 } else if (c == 'B') {
                     if (currentCommand > 0) {
+                        currentCommand--;
+                        if (strlen(history[currentCommand]) < inputLength ) {
+                            eraserCount = inputLength - strlen(history[currentCommand]);
+                        }
                         strncpy(input, history[currentCommand], MAX_SIZE);
                         input[MAX_SIZE] = '\0';
                         inputLength = strlen(input);
                         cursorPosition = strlen(input);
-                        currentCommand--;
+                    } else {
+                        eraserCount = inputLength;
+                        strncpy(input, "", MAX_SIZE);
+                        inputLength = 0;
+                        cursorPosition = 0;
+                        if (currentCommand == 0){
+                            currentCommand--;
+                        }
                     }
                 } else if (c == 'C') {
                     if (cursorPosition < inputLength) {
@@ -277,7 +303,7 @@ int main() {
         strip(input, ' ');
 
         addToHistoryFile(historyPath, input);
-        for (int i = nrCommands - 2; i >= 0; i--){
+        for (int i = nrCommands - 1; i >= 0; i--){
             strcpy(history[i + 1], history[i]);
         }
         strcpy(history[0], input);
