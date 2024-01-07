@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <setjmp.h>
 #include <sys/wait.h>
+#include <sys/termios.h>
 #include <signal.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -23,6 +24,12 @@
 
 static jmp_buf env;
 int commandCnt = 0;
+
+// handle the SIGINT signal (Ctrl+C)
+void handle_suspend(int signo) {
+    printf("\n");
+    siglongjmp(env, 42);
+}
 
 char *strip(char *str, char element) {
     int index = 0;
@@ -42,12 +49,6 @@ char *strip(char *str, char element) {
     }
 
     return str;
-}
-
-// handle the SIGINT signal (Ctrl+C)
-void handle_suspend(int signo) {
-    printf("\n");
-    siglongjmp(env, 42);
 }
 
 // splits the input by space
@@ -272,20 +273,164 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
     }
 }
 
+int loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
+    FILE *file = fopen(historyPath, "r");
+    if (file == NULL) {
+        perror("Error opening history file");
+        exit(-1);
+    }
+
+    char line[MAX_SIZE];
+    int count = 0;
+    int i = 0;
+    int lastLines = 50;
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        count++;
+    }
+
+    fseek(file, 0, SEEK_SET);
+    if (count > 50){
+        for (i = 0; i < count - 50; i++){
+            fgets(line, sizeof(line), file);
+        }
+    }
+
+    if (count < lastLines){
+        lastLines = count;
+    }
+    i=0;
+    while (fgets(line, sizeof(line), file) != NULL && i < 50 && i < count) {
+        if (line != "\n") {
+            line[strlen(line) - 1] = '\0';
+            strcpy(lines[lastLines - i - 1], line);
+            i++;
+        }
+    }
+
+    fclose(file);
+    return lastLines;
+}
+
+void addToHistoryFile(const char *historyPath, char *command) {
+    FILE *file = fopen(historyPath, "a");
+    if (file == NULL) {
+        perror("Error opening history file");
+        exit(-1);
+    }
+    fprintf(file, "%s\n", command);
+    fclose(file);
+}
+
+void setTerminalMode() {
+    struct termios new_termios;
+    tcgetattr(STDIN_FILENO, &new_termios); // gets the current attributes of the terminal and stores them in new_termios
+    new_termios.c_lflag &= ~(ICANON | ECHO); // turns of canonical mode and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios); // sets the modified attributes
+}
+
 int main() {
-    char input[MAX_SIZE];
+    char command[MAX_SIZE], *args[16];
+
+    setTerminalMode();
+
+    char historyPath[MAX_SIZE];
+    snprintf(historyPath, sizeof(historyPath), "%s/history.txt", getcwd(NULL, MAX_SIZE));
+    char history[50][MAX_SIZE];
+    int nrCommands = loadingHistory(historyPath, history); // the number of commands in the history array
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
     signal(SIGINT, handle_suspend);
 
+    int totalBackground = 0;
     while (true) {
+        char input[MAX_SIZE] = ""; 
+        int inputLength = 0;
+        int cursorPosition = 0;
+        int currentCommand = -1; // in the history array
+        int eraserCount = 0;
         sigsetjmp(env, 1);
-        printf(ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ ", getlogin() , hostname, getcwd(NULL, MAX_SIZE));
+        while(1){
+            int URILength = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
+            printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + URILength + 1);
+            // "\r" -> carriage return,  resets printing to the beginning of the line (overwriting what was already printed)
+            // "%-*s" -> positions the input to the left ("-") of a width ("*") equal to inputLength + 1 ("s") 
+            // "\033[%dG" -> Positions the cursor at position %d 
+            if (eraserCount != 0) {
+                for (int i = 0; i < eraserCount; i++){
+                    printf(" ");
+                }
+                printf("\033[%dG", cursorPosition + URILength + 1);
+                eraserCount = 0;
+            } // for deleting the old input (what remains of it after reprtinting)
 
-        fgets(input, MAX_SIZE, stdin);
+            char c = getchar();
 
+            if (c == 27) {
+                c = getchar();
+                c = getchar();
+
+                if (c == 'A') { // Up arrow
+                    if (currentCommand < nrCommands - 1) {
+                        currentCommand++;
+                        if (strlen(history[currentCommand]) < inputLength) {
+                            eraserCount = inputLength - strlen(history[currentCommand]);
+                        }
+                        strncpy(input, history[currentCommand], MAX_SIZE);
+                        input[MAX_SIZE] = '\0';
+                        inputLength = strlen(input);
+                        cursorPosition = strlen(input);
+                    }
+                } else if (c == 'B') { // Down arrow
+                    if (currentCommand > 0) {
+                        currentCommand--;
+                        if (strlen(history[currentCommand]) < inputLength ) {
+                            eraserCount = inputLength - strlen(history[currentCommand]);
+                        }
+                        strncpy(input, history[currentCommand], MAX_SIZE);
+                        input[MAX_SIZE] = '\0';
+                        inputLength = strlen(input);
+                        cursorPosition = strlen(input);
+                    } else {
+                        eraserCount = inputLength;
+                        strncpy(input, "", MAX_SIZE);
+                        inputLength = 0;
+                        cursorPosition = 0;
+                        if (currentCommand == 0){
+                            currentCommand--;
+                        }
+                    }
+                } else if (c == 'C') { // Right arrow
+                    if (cursorPosition < inputLength) {
+                        cursorPosition++;
+                    }
+                } else if (c == 'D') { // Left arrow
+                    if (cursorPosition > 0) {
+                        cursorPosition--;
+                    }
+                }
+            } else if (c == 127 || c == 8) { // Backspace
+                if (cursorPosition > 0) {
+                    memmove(&input[cursorPosition - 1], &input[cursorPosition], inputLength - cursorPosition + 1);
+                    cursorPosition--;
+                    inputLength--;
+                }
+            } else if (c == '\n') { // Enter
+                input[cursorPosition++] = c;
+                printf("\n");
+                break;
+            } else if (inputLength < MAX_SIZE && c >= 32 && c <= 126) { // Restul caracterelor
+                for (int i = inputLength; i > cursorPosition; i--){
+                    input[i]=input[i - 1];
+                }
+                input[cursorPosition++] = c;
+                inputLength++;
+            }
+        }
+
+        // fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
             continue;
@@ -294,6 +439,15 @@ int main() {
         // removes "\n" from end of the line
         input[strlen(input) - 1] = '\0';
         strip(input, ' ');
+
+        addToHistoryFile(historyPath, input);
+        for (int i = nrCommands - 1; i >= 0; i--){
+            strcpy(history[i + 1], history[i]);
+        }
+        strcpy(history[0], input);
+        if (nrCommands < 50){
+            nrCommands++;
+        }
 
         char *commands[MAX_COMMANDS];
         char *seps[MAX_COMMANDS];
