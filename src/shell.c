@@ -4,8 +4,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <setjmp.h>
 #include <sys/wait.h>
 #include <sys/termios.h>
+#include <signal.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -18,6 +20,14 @@
 
 #define MAX_SIZE 128
 #define MAX_PIPES 10
+
+static jmp_buf env;
+
+// handle the SIGINT signal (Ctrl+C)
+void handle_suspend(int signo) {
+    printf("\n");
+    siglongjmp(env, 42);
+}
 
 // for now splits the input by space
 // puts the first token in the command pointer
@@ -207,6 +217,8 @@ int main() {
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
+    signal(SIGINT, handle_suspend);
+
     int totalBackground = 0;
     while (true) {
         char input[MAX_SIZE] = ""; 
@@ -214,7 +226,7 @@ int main() {
         int cursorPosition = 0;
         int currentCommand = -1; // in the history array
         int eraserCount = 0;
-
+        sigsetjmp(env, 1);
         while(1){
             int URILength = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
             printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + URILength + 1);
@@ -345,7 +357,11 @@ int main() {
             continue;
         }
 
-        pid_t pid = vfork();
+        if (strcmp(command, "exit") == 0) {
+            exit(0);
+        }
+
+        pid_t pid = fork();
 
         if (pid < 0) {
             perror("fork");
@@ -353,6 +369,7 @@ int main() {
         }
 
         if (pid == 0) {
+            signal(SIGINT, SIG_DFL);
             exec(command, args, argc);
             exit(0);
         } else {
