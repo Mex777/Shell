@@ -46,6 +46,7 @@ char *strip(char *str, char element) {
     index = strlen(str) - 1;
     while (str[index] == element && index >= 0) {
         str[index] = '\0';
+        index--;
     }
 
     return str;
