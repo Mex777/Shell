@@ -26,7 +26,7 @@ static jmp_buf env;
 int commandCnt = 0;
 
 // handle the SIGINT signal (Ctrl+C)
-void handle_suspend(int signo) {
+void handleSuspend(int signo) {
     printf("\n");
     siglongjmp(env, 42);
 }
@@ -56,7 +56,7 @@ char *strip(char *str, char element) {
 // puts the other tokens in the args pointer array
 // the args array will end with NULL
 // returns the number of arguments the command has
-int parse_command(char *input, char *command, char *args[16]) {
+int parseCommand(char *input, char *command, char *args[16]) {
     strip(input, ' ');
     char *token = strtok(input, " ");
     strcpy(command, token);
@@ -79,7 +79,7 @@ int parse_command(char *input, char *command, char *args[16]) {
 // splits from left to right by &&, ||, ;, &
 // commands are put into the commands array
 // separator[i] - the separator(logical operator) between the command i and i + 1
-int parse_input(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COMMANDS]) {
+int parseInput(char *inp, char *commands[MAX_COMMANDS], char *separator[MAX_COMMANDS]) {
     strip(inp, ' ');
     char *input = inp;
 
@@ -137,16 +137,16 @@ int exec(char *command, char *args[16], int argc) {
     return 0;
 }
 
-void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
+void execPipes(char *commands[MAX_PIPES], int numPipes) {
     int pipefds[MAX_PIPES - 1][2];
-    for (int i = 0; i < num_pipes - 1; ++i) {
+    for (int i = 0; i < numPipes - 1; ++i) {
         if (pipe(pipefds[i]) == -1) {
             perror("pipe");
             exit(EXIT_FAILURE);
         }
     }
 
-    for (int i = 0; i < num_pipes; ++i) {
+    for (int i = 0; i < numPipes; ++i) {
         pid_t currPid = fork();
 
         if (currPid == -1) {
@@ -156,7 +156,7 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
 
         if (currPid == 0) {
             // redirect stdout to the write end of the next pipe
-            if (i < num_pipes - 1) {
+            if (i < numPipes - 1) {
                 dup2(pipefds[i][1], STDOUT_FILENO);
             }
 
@@ -166,33 +166,40 @@ void exec_pipes(char *commands[MAX_PIPES], int num_pipes) {
             }
 
             // close all pipe ends in the child
-            for (int j = 0; j < num_pipes - 1; ++j) {
+            for (int j = 0; j < numPipes - 1; ++j) {
                 close(pipefds[j][0]);
                 close(pipefds[j][1]);
             }
 
             char *input = commands[i];
             char command[MAX_SIZE], *args[16];
-            int argc = parse_command(input, command, args);
+            int argc = parseCommand(input, command, args);
             exec(command, args, argc);
             exit(EXIT_FAILURE);
         }
     }
 
     // close all pipe ends in the parent
-    for (int i = 0; i < num_pipes - 1; ++i) {
+    for (int i = 0; i < numPipes - 1; ++i) {
         close(pipefds[i][0]);
         close(pipefds[i][1]);
     }
 
     // wait for all child processes after they have been created
-    for (int i = 0; i < num_pipes; ++i) {
+    for (int i = 0; i < numPipes; ++i) {
         wait(NULL);
     }
 }
 
+void resetTerminalMode() {
+    struct termios newTermios;
+    tcgetattr(STDIN_FILENO, &newTermios);
+    newTermios.c_lflag |= ICANON | ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newTermios);
+}
+
 int totalBackground = 0;
-void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
+void execCommands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
     char command[MAX_SIZE], *args[16];
     for (int i = 1; i <= cnt; ++i) {
         if (strcmp(commands[i - 1], "") == 0) {
@@ -201,21 +208,21 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
 
         // pipe operator logic
         if (strstr(commands[i - 1], "|") != NULL) {
-            int num_pipes = 0;
+            int numPipes = 0;
             char *comms[MAX_PIPES];
 
             // splits the input into commands based on pipe operator "|"
             char *token = strtok(commands[i - 1], "|");
-            while (token != NULL && num_pipes < MAX_PIPES) {
-                comms[num_pipes++] = strip(token, ' ');
+            while (token != NULL && numPipes < MAX_PIPES) {
+                comms[numPipes++] = strip(token, ' ');
                 token = strtok(NULL, "|");
             }
 
-            exec_pipes(comms, num_pipes);
+            execPipes(comms, numPipes);
             continue;
         }
 
-        int argc = parse_command(commands[i - 1], command, args);
+        int argc = parseCommand(commands[i - 1], command, args);
         if (strcmp(command, "cd") == 0) {
             int status = chdir(args[1]);
             if (status == -1) {
@@ -234,6 +241,7 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
         }
 
         if (strcmp(command, "exit") == 0) {
+            resetTerminalMode();
             exit(0);
         }
 
@@ -252,7 +260,7 @@ void exec_commands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int c
             exit(EXIT_FAILURE);
         } else {
             if (runInBackground == false) {
-                pid_t child_pid = waitpid(pid, &status, 0);
+                pid_t childPid = waitpid(pid, &status, 0);
                 if (WIFEXITED(status)) {
                     exitStatus = WEXITSTATUS(status);
                 }
@@ -296,10 +304,10 @@ int loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
         }
     }
 
-    if (count < lastLines){
+    if (count < lastLines) {
         lastLines = count;
     }
-    i=0;
+    i = 0;
     while (fgets(line, sizeof(line), file) != NULL && i < 50 && i < count) {
         if (line != "\n") {
             line[strlen(line) - 1] = '\0';
@@ -323,10 +331,10 @@ void addToHistoryFile(const char *historyPath, char *command) {
 }
 
 void setTerminalMode() {
-    struct termios new_termios;
-    tcgetattr(STDIN_FILENO, &new_termios); // gets the current attributes of the terminal and stores them in new_termios
-    new_termios.c_lflag &= ~(ICANON | ECHO); // turns of canonical mode and echo
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios); // sets the modified attributes
+    struct termios newTermios;
+    tcgetattr(STDIN_FILENO, &newTermios); // gets the current attributes of the terminal and stores them in newTermios
+    newTermios.c_lflag &= ~(ICANON | ECHO); // turns of canonical mode and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newTermios); // sets the modified attributes
 }
 
 int main() {
@@ -342,7 +350,7 @@ int main() {
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
 
-    signal(SIGINT, handle_suspend);
+    signal(SIGINT, handleSuspend);
 
     int totalBackground = 0;
     while (true) {
@@ -452,8 +460,8 @@ int main() {
         char *commands[MAX_COMMANDS];
         char *seps[MAX_COMMANDS];
 
-        int cnt = parse_input(input, commands, seps);
-        exec_commands(commands, seps, cnt);
+        int cnt = parseInput(input, commands, seps);
+        execCommands(commands, seps, cnt);
     }
     
     return 0;
