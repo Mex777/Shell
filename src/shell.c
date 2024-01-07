@@ -298,8 +298,8 @@ int loadingHistory(const char *historyPath, char lines[50][MAX_SIZE]) {
     }
 
     fseek(file, 0, SEEK_SET);
-    if (count > 50){
-        for (i = 0; i < count - 50; i++){
+    if (count > 50) {
+        for (i = 0; i < count - 50; i++) {
             fgets(line, sizeof(line), file);
         }
     }
@@ -360,19 +360,19 @@ int main() {
         int currentCommand = -1; // in the history array
         int eraserCount = 0;
         sigsetjmp(env, 1);
-        while(1){
+        while(1) {
             int URILength = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
             printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + URILength + 1);
             // "\r" -> carriage return,  resets printing to the beginning of the line (overwriting what was already printed)
             // "%-*s" -> positions the input to the left ("-") of a width ("*") equal to inputLength + 1 ("s") 
             // "\033[%dG" -> Positions the cursor at position %d 
-            if (eraserCount != 0) {
-                for (int i = 0; i < eraserCount; i++){
+            if (eraserCount != 0) { // for deleting the old input (what remains of it after reprinting)
+                for (int i = 0; i < eraserCount; i++) {
                     printf(" ");
                 }
                 printf("\033[%dG", cursorPosition + URILength + 1);
                 eraserCount = 0;
-            } // for deleting the old input (what remains of it after reprtinting)
+            } 
 
             char c = getchar();
 
@@ -394,7 +394,7 @@ int main() {
                 } else if (c == 'B') { // Down arrow
                     if (currentCommand > 0) {
                         currentCommand--;
-                        if (strlen(history[currentCommand]) < inputLength ) {
+                        if (strlen(history[currentCommand]) < inputLength) {
                             eraserCount = inputLength - strlen(history[currentCommand]);
                         }
                         strncpy(input, history[currentCommand], MAX_SIZE);
@@ -406,7 +406,7 @@ int main() {
                         strncpy(input, "", MAX_SIZE);
                         inputLength = 0;
                         cursorPosition = 0;
-                        if (currentCommand == 0){
+                        if (currentCommand == 0) {
                             currentCommand--;
                         }
                     }
@@ -430,7 +430,7 @@ int main() {
                 printf("\n");
                 break;
             } else if (inputLength < MAX_SIZE && c >= 32 && c <= 126) { // Restul caracterelor
-                for (int i = inputLength; i > cursorPosition; i--){
+                for (int i = inputLength; i > cursorPosition; i--) {
                     input[i]=input[i - 1];
                 }
                 input[cursorPosition++] = c;
@@ -438,7 +438,6 @@ int main() {
             }
         }
 
-        // fgets(input, MAX_SIZE, stdin);
         // ignores the case when the input is empty
         if (strcmp(input, "\n") == 0) {
             continue;
@@ -449,11 +448,11 @@ int main() {
         strip(input, ' ');
 
         addToHistoryFile(historyPath, input);
-        for (int i = nrCommands - 1; i >= 0; i--){
+        for (int i = nrCommands - 1; i >= 0; i--) {
             strcpy(history[i + 1], history[i]);
         }
         strcpy(history[0], input);
-        if (nrCommands < 50){
+        if (nrCommands < 50) {
             nrCommands++;
         }
 
