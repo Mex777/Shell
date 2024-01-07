@@ -189,9 +189,9 @@ void addToHistoryFile(const char *historyPath, char *command) {
 
 void setTerminalMode() {
     struct termios new_termios;
-    tcgetattr(STDIN_FILENO, &new_termios);
-    new_termios.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+    tcgetattr(STDIN_FILENO, &new_termios); // gets the current attributes of the terminal and stores them in new_termios
+    new_termios.c_lflag &= ~(ICANON | ECHO); // turns of canonical mode and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios); // sets the modified attributes
 }
 
 int main() {
@@ -202,8 +202,7 @@ int main() {
     char historyPath[MAX_SIZE];
     snprintf(historyPath, sizeof(historyPath), "%s/history.txt", getcwd(NULL, MAX_SIZE));
     char history[50][MAX_SIZE];
-    int nrCommands=0;
-    nrCommands = loadingHistory(historyPath, history);
+    int nrCommands = loadingHistory(historyPath, history); // the number of commands in the history array
 
     char hostname[MAX_SIZE];
     gethostname(hostname, sizeof(hostname));
@@ -213,20 +212,22 @@ int main() {
         char input[MAX_SIZE] = ""; 
         int inputLength = 0;
         int cursorPosition = 0;
-        int currentCommand = -1;
+        int currentCommand = -1; // in the history array
         int eraserCount = 0;
 
         while(1){
-            int printedLen = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
-            printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + printedLen + 1);
-
+            int URILength = strlen(getlogin()) + strlen("@") + strlen(hostname) + strlen(":") + strlen(getcwd(NULL, MAX_SIZE)) + strlen("$ ");
+            printf("\r" ANSI_BOLD ANSI_COLOR_GREEN "%s@%s" ANSI_COLOR_RESET ":" ANSI_BOLD ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "$ %-*s\033[%dG", getlogin(), hostname, getcwd(NULL, MAX_SIZE), inputLength + 1, input, cursorPosition + URILength + 1);
+            // "\r" -> carriage return,  resets printing to the beginning of the line (overwriting what was already printed)
+            // "%-*s" -> positions the input to the left ("-") of a width ("*") equal to inputLength + 1 ("s") 
+            // "\033[%dG" -> Positions the cursor at position %d 
             if (eraserCount != 0) {
                 for (int i = 0; i < eraserCount; i++){
                     printf(" ");
                 }
-                printf("\033[%dG", cursorPosition + printedLen + 1);
+                printf("\033[%dG", cursorPosition + URILength + 1);
                 eraserCount = 0;
-            }
+            } // for deleting the old input (what remains of it after reprtinting)
 
             char c = getchar();
 
@@ -234,7 +235,7 @@ int main() {
                 c = getchar();
                 c = getchar();
 
-                if (c == 'A') {
+                if (c == 'A') { // Up arrow
                     if (currentCommand < nrCommands - 1) {
                         currentCommand++;
                         if (strlen(history[currentCommand]) < inputLength) {
@@ -245,7 +246,7 @@ int main() {
                         inputLength = strlen(input);
                         cursorPosition = strlen(input);
                     }
-                } else if (c == 'B') {
+                } else if (c == 'B') { // Down arrow
                     if (currentCommand > 0) {
                         currentCommand--;
                         if (strlen(history[currentCommand]) < inputLength ) {
@@ -264,26 +265,26 @@ int main() {
                             currentCommand--;
                         }
                     }
-                } else if (c == 'C') {
+                } else if (c == 'C') { // Right arrow
                     if (cursorPosition < inputLength) {
                         cursorPosition++;
                     }
-                } else if (c == 'D') {
+                } else if (c == 'D') { // Left arrow
                     if (cursorPosition > 0) {
                         cursorPosition--;
                     }
                 }
-            } else if (c == 127 || c == 8) {
+            } else if (c == 127 || c == 8) { // Backspace
                 if (cursorPosition > 0) {
                     memmove(&input[cursorPosition - 1], &input[cursorPosition], inputLength - cursorPosition + 1);
                     cursorPosition--;
                     inputLength--;
                 }
-            } else if (c == '\n') {
+            } else if (c == '\n') { // Enter
                 input[cursorPosition++] = c;
                 printf("\n");
                 break;
-            } else if (inputLength < MAX_SIZE && c >= 32 && c <= 126) {
+            } else if (inputLength < MAX_SIZE && c >= 32 && c <= 126) { // Restul caracterelor
                 for (int i = inputLength; i > cursorPosition; i--){
                     input[i]=input[i - 1];
                 }
