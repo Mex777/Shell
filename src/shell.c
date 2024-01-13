@@ -202,9 +202,18 @@ void resetTerminalMode() {
 int totalBackground = 0;
 void execCommands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cnt) {
     char command[MAX_SIZE], *args[16];
+    bool outcome = true;
     for (int i = 1; i <= cnt; ++i) {
         if (strcmp(commands[i - 1], "") == 0) {
             return;
+        }
+
+        if (i > 1 && strcmp(seps[i - 1], "&&") == 0 && outcome == false) {
+            continue;
+        }
+
+        if (i > 1 && strcmp(seps[i - 1], "||") == 0 && outcome == true) {
+            continue;
         }
 
         // pipe operator logic
@@ -230,14 +239,7 @@ void execCommands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cn
                 perror("CD");
             }
 
-            if (strcmp(seps[i], "||") == 0 && status == EXIT_SUCCESS) {
-                return; 
-            }
-
-            if (strcmp(seps[i], "&&") == 0 && status != EXIT_SUCCESS) {
-                return;
-            }
-
+            outcome = status == EXIT_SUCCESS; 
             continue;
         }
 
@@ -265,20 +267,13 @@ void execCommands(char *commands[MAX_COMMANDS], char *seps[MAX_COMMANDS], int cn
                 if (WIFEXITED(status)) {
                     exitStatus = WEXITSTATUS(status);
                 }
-
             } else {
                 ++totalBackground;
                 printf("[%d] %d\n", totalBackground, pid);
             }
         }
 
-        if (strcmp(seps[i], "&&") == 0 && exitStatus != EXIT_SUCCESS) {
-            return;
-        }
-
-        if (strcmp(seps[i], "||") == 0 && exitStatus == EXIT_SUCCESS) {
-           return; 
-        }
+        outcome = exitStatus == EXIT_SUCCESS; 
     }
 }
 
